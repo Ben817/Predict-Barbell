@@ -5,7 +5,9 @@ date: "13 februari 2016"
 output: html_document
 ---
 ## Background
-Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. **In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants and predict if they lift a barbell correctly**. To do this, a modell is trained with help from barbell where the participants lifts a barbell correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks.  
+**In this project, the goal is to use such device data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants and predict if they lift a barbell correctly**. A model is trained with help from device data where the participants lift a barbell correctly and incorrectly in 5 different ways.  
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
 
 ```{r Load Dataset and Library,echo=FALSE, message = FALSE}
 library(ggplot2)
@@ -23,9 +25,9 @@ viewcoldf <- function(df, col){
 ```
 ## Reducing the training set features
 To do a good prediction it is important to know the input variables used in the test set. Therefore an evaluation of the testset is done. The test set contains some 157 features as input. Looking through the features it can be seen that the there are some that only contain *NA*s or are empty. This means that these columns will not give any information in the predictions.  
-So, training can be done with excluding these columns from the training set. 
+So, model building can be done excluding these columns from the training set. 
 
-Since some of the features in the training set is not used at all in the validation set (contains only NAs or are empty). Also, since the name of the person should not be input to the model, this feature is also removed. 
+Since some of the features in the training set is not used at all in the validation set (contains only NAs or are empty). Also, since it is belived that the name of the person should not be input to the model, this feature is also removed. 
 ```{r Evaluation of test set, echo = FALSE}
 cols.to.exclude <- sapply(1:ncol(testset), function(x) sum(is.na(testset[, x, with = F])|testset[, x, with = F]=="") == nrow(testset)) ## sum of either NAs or "" samples are the same as the number of rows, then the columns should not be used for evaluation since they do not contain any information.
 
@@ -37,8 +39,8 @@ cols.to.exclude <- c(cols.to.exclude, "V1", "user_name","raw_timestamp_part_1","
 trainset.reduced <- trainset[, -cols.to.exclude, with = F] #Remove columns that are exluded from taining
 
 ```
-This means that the trainingset is reduced from `r ncol(trainset)` features to some **`r ncol(trainset.reduced) `** 
-The columns that can be excluded from the training and test set are:
+This means that the trainingset is reduced from **`r ncol(trainset)`** features to some **`r ncol(trainset.reduced) `**  
+The columns that can be _excluded_ from the training and test set are:
 
 ```{r Features that are removed,echo=FALSE, results = 'asis'}
 xtb <- xtable(data.frame("Columns to exclude from training" = cols.to.exclude))
@@ -62,16 +64,18 @@ training <- trainset.reduced[inTrain,]
 validation <- trainset.reduced[-inTrain]
 #t <- training[sample(1:nrow(training),),]
 t<-training
-modFit <- train(classe~., method = "rf", data = t,ntree=40, importance = TRUE)
+modFit <- train(classe~., method = "rf", data = t,ntree=50, importance = TRUE)
 ```
-To build a model that can predict if the user lifts the barbell in a correct way, the trainingdata is divided into a training and a testset. 70% of the samples are used to train the model and 30% is used to validate the model. In our case this resulted in some `r nrow(training)` training samples and `r nrow(validation)` validation samples.  
+To build a model that can predict if the user lifts the barbell in a correct way, the trainingdata is divided into a training and a testset. 70% of the samples are used to train the model and 30% is used to validate it. In our case this resulted in some `r nrow(training)` training samples and `r nrow(validation)` validation samples.  
 The algorithm used in this case is Random Forest. This is a good classifier when input varibales could be dependent of each other in a complex way. Also, it is usefull when target variable is a categorical.
 
-It was decides to grow 30 trees in the modell after looking at the error  in prediction on each of the class vaiables versus number of trees grown. The error curves seams to levarage out after some 30 trees.  
+It was decides to grow 50 trees in the modell after looking at the error  in prediction on each of the class vaiables versus number of trees grown. The error curves seams to levarage out after some 50 trees.  
 The in sample error of the model is `r sprintf("%.1f",modFit$finalModel$err.rate[nrow(modFit$finalModel$err.rate),1]*100)`
  %.
 ```{r compare model,echo =FALSE, results ='asis'}
-qplot(Var1,value,data=melt(modFit$finalModel$err.rate),color=Var2, geom = "line")
+p1 <- qplot(Var1,value,data=melt(modFit$finalModel$err.rate),color=Var2, geom = "line")
+p1 <- p1 + labs(list(title = "Error versus number of trees grown", x = "Number of trees", y = "Error Rate", color = "Classe"))
+p1
 #  missClass = function(values,prediction){sum(((prediction > 0.5)*1) != values)/length(values)}
 ```
 
@@ -85,7 +89,7 @@ xtb <- xtable(confdf)
 print(xtb, type ="html")
 ```
 \s
-The out of sample error rate from the cross confusion matrix is `r sprintf("%.2f",outsampleerror*100)`%.
+The out of sample error rate from the confusion matrix is `r sprintf("%.2f",outsampleerror*100)`%.
 ```{r Importance, echo = FALSE, eval = FALSE}
 t <- varImp(modFit$finalModel, scale =T)
 imp <- names(rowSums(t)[order(rowSums(t),decreasing = T)][1:4])
@@ -99,3 +103,12 @@ p1
 
 
 ## Predicting the testset
+Below is a table that contains the prediction on the tests set.
+```{r Predict Testset, echo = FALSE, results = 'asis',comment=FALSE,warning=FALSE}
+
+testset.reduced <- testset[,-cols.to.exclude,with =FALSE]
+testset.predict <- predict(modFit, newdata = testset.reduced)
+xtb <- xtable(data.frame(number = 1:length(testset.predict), Prediction = testset.predict))
+print(xtb, include.rownames = FALSE, type = "html")
+```
+
